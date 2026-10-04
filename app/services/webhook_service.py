@@ -27,7 +27,8 @@ def generate_signature(
 async def deliver_webhook(
     target_url: str,
     payload: dict,
-    secret: str
+    secret: str,
+    webhook_id: int | None = None
 ):
 
     signature = generate_signature(
@@ -36,8 +37,12 @@ async def deliver_webhook(
     )
 
     headers = {
+        "Content-Type": "application/json",
         "X-HookRelay-Signature": signature
     }
+
+    if webhook_id is not None:
+        headers["X-HookRelay-Webhook-Id"] = str(webhook_id)
 
     async with httpx.AsyncClient() as client:
 

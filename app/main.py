@@ -158,12 +158,16 @@ async def test_receiver(
             detail="Missing webhook signature (X-HookRelay-Signature)"
         )
 
-    # 1. Determine secret: query param > header > database lookup > fallback default
+    # 1. Determine secret: query param > header > X-HookRelay-Webhook-Id > payload wid
     target_secret = secret or request.headers.get("X-Webhook-Secret")
-    if not target_secret and webhook_id:
-        wh = db.query(Webhook).filter(Webhook.id == webhook_id).first()
-        if wh:
-            target_secret = wh.secret
+
+    if not target_secret:
+        header_wid = request.headers.get("X-HookRelay-Webhook-Id")
+        effective_wid = webhook_id or (int(header_wid) if header_wid and header_wid.isdigit() else None)
+        if effective_wid:
+            wh = db.query(Webhook).filter(Webhook.id == effective_wid).first()
+            if wh:
+                target_secret = wh.secret
 
     if not target_secret and isinstance(payload, dict):
         wid = payload.get("data", {}).get("webhook_id") or payload.get("webhook_id")
@@ -175,28 +179,59 @@ async def test_receiver(
             except Exception:
                 pass
 
-    if not target_secret:
-        target_secret = "whsec_0LBP8MqdENiXHNMuwuTD-mV-gABw6vZgw0qouNmylQ4"
-
     payload_bytes = json.dumps(
         payload,
         separators=(",", ":"),
         sort_keys=True
     ).encode()
 
-    expected_signature = (
-        "sha256="
-        + hmac.new(
-            target_secret.encode(),
-            payload_bytes,
-            hashlib.sha256
-        ).hexdigest()
-    )
+    is_verified = False
 
-    if not hmac.compare_digest(
-        received_signature,
-        expected_signature
-    ):
+    # A. If target_secret is explicitly identified, verify directly
+    if target_secret:
+        expected = (
+            "sha256="
+            + hmac.new(
+                target_secret.encode(),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+        )
+        if hmac.compare_digest(received_signature, expected):
+            is_verified = True
+
+    # B. Otherwise, match received signature against any registered webhook in the database
+    if not is_verified:
+        for wh in db.query(Webhook).all():
+            cand_expected = (
+                "sha256="
+                + hmac.new(
+                    wh.secret.encode(),
+                    payload_bytes,
+                    hashlib.sha256
+                ).hexdigest()
+            )
+            if hmac.compare_digest(received_signature, cand_expected):
+                is_verified = True
+                target_secret = wh.secret
+                break
+
+    # C. Fallback default secret
+    if not is_verified:
+        fallback_secret = "whsec_0LBP8MqdENiXHNMuwuTD-mV-gABw6vZgw0qouNmylQ4"
+        fallback_expected = (
+            "sha256="
+            + hmac.new(
+                fallback_secret.encode(),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+        )
+        if hmac.compare_digest(received_signature, fallback_expected):
+            is_verified = True
+            target_secret = fallback_secret
+
+    if not is_verified:
         raise HTTPException(
             status_code=401,
             detail="Invalid webhook signature"

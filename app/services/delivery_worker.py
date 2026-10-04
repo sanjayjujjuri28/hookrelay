@@ -75,7 +75,8 @@ async def process_delivery(
                 response = await deliver_webhook(
                     target_url=webhook.target_url,
                     payload=payload,
-                    secret=webhook.secret
+                    secret=webhook.secret,
+                    webhook_id=webhook.id
                 )
 
 

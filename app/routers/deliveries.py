@@ -188,7 +188,8 @@ async def retry_delivery(
         response = await deliver_webhook(
             target_url=webhook.target_url,
             payload=delivery.event_payload,
-            secret=webhook.secret
+            secret=webhook.secret,
+            webhook_id=webhook.id
         )
 
         # 4. Update delivery
