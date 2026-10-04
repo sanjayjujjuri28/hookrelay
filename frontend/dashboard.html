@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HookRelay Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <div class="app">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+
+            <div class="brand">
+                <div class="brand-icon">H</div>
+                <div>
+                    <h2>HookRelay</h2>
+                    <span>Webhook Infrastructure</span>
+                </div>
+            </div>
+
+            <nav class="navigation">
+                <button class="nav-item active" data-section="overview">
+                    <span>⌂</span>
+                    Overview
+                </button>
+
+                <button class="nav-item" data-section="webhooks">
+                    <span>◈</span>
+                    Webhooks
+                </button>
+
+                <button class="nav-item" data-section="deliveries">
+                    <span>↗</span>
+                    Deliveries
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="user-card">
+                    <div class="avatar" id="userAvatar">H</div>
+                    <div class="user-info">
+                        <strong id="userEmail">Loading...</strong>
+                        <span id="userRole">Developer</span>
+                    </div>
+                </div>
+
+                <button id="logoutBtn" class="logout-btn">
+                    Logout
+                </button>
+            </div>
+
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main">
+
+            <!-- TOPBAR -->
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow" id="pageEyebrow">CONTROL CENTER</p>
+                    <h1 id="pageTitle">Overview</h1>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button id="refreshBtn" class="secondary-btn" title="Refresh dashboard data">
+                        ↻ Refresh
+                    </button>
+                    <button id="openTestModalBtn" class="secondary-btn" title="Dispatch a test event to a webhook">
+                        ⚡ Send Test Event
+                    </button>
+                    <button id="createWebhookBtn" class="primary-btn">
+                        + Create webhook
+                    </button>
+                </div>
+            </header>
+
+            <!-- =========================================================
+                 SECTION 1: OVERVIEW
+            ========================================================= -->
+            <section id="overviewSection" class="section active">
+
+                <div class="welcome">
+                    <div>
+                        <span class="status-dot"></span>
+                        System operational
+                    </div>
+
+                    <h2>
+                        Your webhook infrastructure,
+                        <span>under control.</span>
+                    </h2>
+
+                    <p>
+                        Monitor endpoints, inspect outgoing payload deliveries and manage your cryptographically signed webhook secrets from one centralized place.
+                    </p>
+                </div>
+
+                <!-- STATS GRID -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Webhooks</span>
+                        <strong id="webhookCount">0</strong>
+                        <small>Active endpoints</small>
+                    </div>
+
+                    <div class="stat-card">
+                        <span class="stat-label">Deliveries</span>
+                        <strong id="deliveryCount">0</strong>
+                        <small>Total attempts logged</small>
+                    </div>
+
+                    <div class="stat-card success">
+                        <span class="stat-label">Successful</span>
+                        <strong id="successCount">0</strong>
+                        <small>2xx delivered successfully</small>
+                    </div>
+
+                    <div class="stat-card danger">
+                        <span class="stat-label">Failed</span>
+                        <strong id="failedCount">0</strong>
+                        <small>Non-2xx / timeouts</small>
+                    </div>
+                </div>
+
+                <!-- RECENT WEBHOOKS -->
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">ACTIVE ENDPOINTS</p>
+                        <h2>Your webhooks</h2>
+                    </div>
+                    <button class="text-btn" id="viewWebhooksBtn">
+                        View all →
+                    </button>
+                </div>
+
+                <div id="webhookList" class="webhook-list">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <!-- RECENT DELIVERIES -->
+                <div class="section-header" style="margin-top: 36px;">
+                    <div>
+                        <p class="eyebrow">RECENT ACTIVITY</p>
+                        <h2>Latest deliveries</h2>
+                    </div>
+                    <button class="text-btn" id="viewDeliveriesBtn">
+                        View full audit log →
+                    </button>
+                </div>
+
+                <div class="delivery-table-wrapper">
+                    <table class="delivery-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Webhook Endpoint</th>
+                                <th>Status</th>
+                                <th>Status Code</th>
+                                <th>Attempt</th>
+                                <th>Created</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overviewDeliveryTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+            </section>
+
+            <!-- =========================================================
+                 SECTION 2: WEBHOOKS
+            ========================================================= -->
+            <section id="webhooksSection" class="section">
+
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">ENDPOINT MANAGEMENT</p>
+                        <h2>Webhook Endpoints</h2>
+                        <p>Manage, test, and rotate secrets for your subscribed webhooks.</p>
+                    </div>
+
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <input
+                            type="text"
+                            id="webhookSearchInput"
+                            placeholder="Filter by name or URL..."
+                            class="filter"
+                            style="width: 220px;"
+                        >
+                        <button class="primary-btn" id="createWebhookBtn2">
+                            + Create webhook
+                        </button>
+                    </div>
+                </div>
+
+                <div id="allWebhooks" class="webhook-grid">
+                    <!-- Webhook cards populated dynamically -->
+                </div>
+
+            </section>
+
+
+            <!-- =========================================================
+                 SECTION 3: DELIVERIES
+            ========================================================= -->
+            <section id="deliveriesSection" class="section">
+
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">EVENT AUDIT LOG</p>
+                        <h2>Deliveries</h2>
+                        <p>Inspect outgoing HTTP delivery attempts, payloads, and signatures.</p>
+                    </div>
+
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <select id="statusFilter" class="filter">
+                            <option value="">All statuses</option>
+                            <option value="success">Success only</option>
+                            <option value="failed">Failed only</option>
+                            <option value="pending">Pending only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="delivery-table-wrapper">
+                    <table class="delivery-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Webhook</th>
+                                <th>Target URL</th>
+                                <th>Status</th>
+                                <th>Code</th>
+                                <th>Attempt</th>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deliveryTableBody">
+                            <!-- Delivery rows populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- PAGINATION BAR -->
+                <div class="pagination-bar">
+                    <div class="pagination-info" id="paginationInfo">
+                        Showing deliveries
+                    </div>
+                    <div class="pagination-actions">
+                        <button id="prevPageBtn" class="page-btn">← Previous</button>
+                        <button id="nextPageBtn" class="page-btn">Next →</button>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- =========================================================
+         MODALS
+    ========================================================= -->
+
+    <!-- 1. CREATE WEBHOOK MODAL -->
+    <div id="webhookModal" class="modal hidden">
+        <div class="modal-box">
+            <button id="closeModal" class="modal-close">×</button>
+            <p class="eyebrow">NEW ENDPOINT</p>
+            <h2>Create webhook</h2>
+            <p class="modal-description">Connect HookRelay to your application destination URL.</p>
+
+            <form id="webhookForm">
+                <label>
+                    Webhook name
+                    <input
+                        id="webhookName"
+                        type="text"
+                        placeholder="e.g. Production Payment API"
+                        required
+                    >
+                </label>
+
+                <label>
+                    Target URL
+                    <input
+                        id="targetUrl"
+                        type="url"
+                        placeholder="https://yourdomain.com/webhooks"
+                        required
+                    >
+                </label>
+
+                <div style="margin-bottom: 20px;">
+                    <button type="button" id="useTestReceiverBtn" class="text-btn" style="padding:0; font-size:11px;">
+                        💡 Test locally: Use internal receiver (/test-receiver)
+                    </button>
+                </div>
+
+                <button type="submit" class="primary-button" id="createWebhookSubmitBtn">
+                    Create webhook
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. NEW SECRET REVEAL MODAL -->
+    <div id="secretModal" class="modal hidden">
+        <div class="modal-box">
+            <button id="closeSecretModal" class="modal-close">×</button>
+            <p class="eyebrow" style="color:var(--success);">ENDPOINT CREATED</p>
+            <h2>Webhook Secret</h2>
+            <p class="modal-description">
+                Use this secret to cryptographically verify <code style="color:#b9aaff;">X-HookRelay-Signature</code> headers on your destination server.
+            </p>
+
+            <div class="secret-container">
+                <span class="secret-text" id="newSecretValue">whsec_...</span>
+                <button type="button" id="copyNewSecretBtn" class="copy-btn">Copy</button>
+            </div>
+
+            <p style="font-size:11px; color:var(--muted); margin-bottom:20px;">
+                ⚠️ HookRelay uses HMAC-SHA256 signature canonicalization. Store this secret safely in your server environment variables.
+            </p>
+
+            <button type="button" id="dismissSecretModalBtn" class="primary-button">
+                Done
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. EDIT WEBHOOK MODAL -->
+    <div id="editWebhookModal" class="modal hidden">
+        <div class="modal-box">
+            <button id="closeEditModal" class="modal-close">×</button>
+            <p class="eyebrow">CONFIGURE ENDPOINT</p>
+            <h2>Edit webhook</h2>
+            <p class="modal-description">Update target URL, name, or active status.</p>
+
+            <form id="editWebhookForm">
+                <input type="hidden" id="editWebhookId">
+
+                <label>
+                    Webhook name
+                    <input id="editWebhookName" type="text" required>
+                </label>
+
+                <label>
+                    Target URL
+                    <input id="editTargetUrl" type="url" required>
+                </label>
+
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:22px;">
+                    <input type="checkbox" id="editIsActive" style="width:16px; height:16px; margin:0;">
+                    <span>Active (receiving events)</span>
+                </label>
+
+                <button type="submit" class="primary-button">
+                    Save changes
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. SEND TEST EVENT MODAL -->
+    <div id="testEventModal" class="modal hidden">
+        <div class="modal-box" style="max-width: 520px;">
+            <button id="closeTestModal" class="modal-close">×</button>
+            <p class="eyebrow">EVENT DISPATCHER</p>
+            <h2>Send test event</h2>
+            <p class="modal-description">Dispatch an event payload and check signature delivery in real time.</p>
+
+            <form id="testEventForm">
+                <div class="form-group">
+                    <label for="testWebhookSelect">Select destination webhook</label>
+                    <select id="testWebhookSelect" required>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <div class="label-row">
+                        <label for="testEventTemplate">Event Template</label>
+                    </div>
+                    <select id="testEventTemplate">
+                        <option value="ping">Ping Event (hookrelay.ping)</option>
+                        <option value="payment">Payment Succeeded (payment.succeeded)</option>
+                        <option value="user_signup">User Signup (user.created)</option>
+                        <option value="order">Order Placed (order.completed)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="testEventPayload">JSON Payload</label>
+                    <textarea id="testEventPayload" rows="7" style="font-family:'SF Mono', monospace; font-size:12px; resize:vertical;"></textarea>
+                </div>
+
+                <button type="submit" class="primary-button" id="sendTestSubmitBtn">
+                    Dispatch event now ⚡
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. INSPECT DELIVERY MODAL -->
+    <div id="inspectDeliveryModal" class="modal hidden">
+        <div class="modal-box" style="max-width: 600px;">
+            <button id="closeInspectModal" class="modal-close">×</button>
+            <p class="eyebrow">DELIVERY INSPECTOR</p>
+            <h2 id="inspectModalTitle">Delivery Details</h2>
+            <p class="modal-description" id="inspectModalSubtitle">Inspect status code, attempt count, and payload.</p>
+
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:16px;">
+                <div style="background:var(--panel-2); padding:10px 14px; border-radius:9px; border:1px solid var(--border);">
+                    <span style="font-size:10px; color:var(--muted); display:block;">Status</span>
+                    <span id="inspectStatusBadge" class="status-badge" style="margin-top:4px;">-</span>
+                </div>
+                <div style="background:var(--panel-2); padding:10px 14px; border-radius:9px; border:1px solid var(--border);">
+                    <span style="font-size:10px; color:var(--muted); display:block;">HTTP Status</span>
+                    <strong id="inspectStatusCode" style="font-size:13px; display:block; margin-top:4px;">-</strong>
+                </div>
+                <div style="background:var(--panel-2); padding:10px 14px; border-radius:9px; border:1px solid var(--border);">
+                    <span style="font-size:10px; color:var(--muted); display:block;">Attempts</span>
+                    <strong id="inspectAttempt" style="font-size:13px; display:block; margin-top:4px;">-</strong>
+                </div>
+            </div>
+
+            <div id="inspectErrorContainer" style="display:none; margin-bottom:16px;">
+                <div style="background:rgba(255,93,108,0.1); border:1px solid rgba(255,93,108,0.3); border-radius:9px; padding:10px 14px; color:#ff8b95; font-size:12px;" id="inspectErrorMessage">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="label-row">
+                    <label>Event JSON Payload</label>
+                    <button type="button" id="copyInspectPayloadBtn" class="text-btn" style="padding:0; font-size:11px;">
+                        Copy JSON
+                    </button>
+                </div>
+                <div class="code-viewer" id="inspectPayloadViewer"></div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+                <button type="button" id="inspectRetryBtn" class="primary-btn">
+                    ↻ Retry this delivery
+                </button>
+                <button type="button" id="dismissInspectBtn" class="secondary-btn">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. CONFIRMATION MODAL -->
+    <div id="confirmModal" class="modal hidden">
+        <div class="modal-box" style="max-width: 420px;">
+            <p class="eyebrow" id="confirmEyebrow" style="color:var(--danger);">CONFIRM ACTION</p>
+            <h2 id="confirmTitle">Are you sure?</h2>
+            <p class="modal-description" id="confirmMessage">This action cannot be undone.</p>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+                <button type="button" id="confirmCancelBtn" class="secondary-btn">
+                    Cancel
+                </button>
+                <button type="button" id="confirmOkBtn" class="danger-btn">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- SCRIPTS -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+
+</body>
+
+</html>

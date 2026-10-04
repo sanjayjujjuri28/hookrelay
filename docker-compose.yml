@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: hookrelay_web
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg://hookrelay:hookrelay_secret@db:5432/hookrelay
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-c93e4b789123456789abcdef0123456789abcdef0123456789abcdef01234567}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: hookrelay_db
+    restart: always
+    environment:
+      POSTGRES_USER: hookrelay
+      POSTGRES_PASSWORD: hookrelay_secret
+      POSTGRES_DB: hookrelay
+    ports:
+      - "5432:5432"
+    volumes:
+      - hookrelay_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hookrelay -d hookrelay"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  hookrelay_pgdata:

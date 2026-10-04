@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HookRelay — Enterprise Webhook Infrastructure</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%237c5cff'/><text x='50%' y='68%' font-size='55' font-weight='800' fill='white' text-anchor='middle'>H</text></svg>">
+</head>
+
+<body class="landing">
+
+    <!-- NAVIGATION -->
+    <header class="landing-nav">
+        <div class="brand">
+            <div class="brand-icon">H</div>
+            <div>
+                <h2>HookRelay</h2>
+                <span>Webhook Infrastructure</span>
+            </div>
+        </div>
+
+        <nav class="nav-actions">
+            <a href="#features" class="auth-link" style="margin-right: 12px; color: var(--muted);">Features</a>
+            <a href="#code" class="auth-link" style="margin-right: 18px; color: var(--muted);">Developers</a>
+            <a href="/login.html" class="auth-link" style="margin-right: 8px;">Sign in</a>
+            <a href="/register.html" class="primary-btn" style="text-decoration:none; padding:9px 18px; font-size:12px;">
+                Get Started Free →
+            </a>
+        </nav>
+    </header>
+
+    <!-- HERO -->
+    <main>
+        <section class="landing-hero">
+            <div class="hero-pill">
+                <span class="status-dot"></span>
+                PRODUCTION-GRADE WEBHOOK INFRASTRUCTURE
+            </div>
+
+            <h1>
+                Reliable, observable webhooks<br>
+                <span>built for modern APIs.</span>
+            </h1>
+
+            <p>
+                Dispatch, cryptographically sign, monitor, and retry webhook events with millisecond latency. HookRelay gives you complete control over your outbound event pipeline.
+            </p>
+
+            <div class="hero-buttons">
+                <a href="/dashboard.html" class="primary-btn" style="text-decoration:none; padding:13px 26px; font-size:14px;">
+                    Launch Console 🚀
+                </a>
+                <a href="/register.html" class="secondary-btn" style="text-decoration:none; padding:13px 26px; font-size:14px;">
+                    Create Free Account
+                </a>
+            </div>
+        </section>
+
+        <!-- LIVE INTERACTIVE ARCHITECTURE PREVIEW -->
+        <section id="code" style="max-width: 980px; margin: 20px auto 80px; padding: 0 24px;">
+            <div style="background:var(--panel); border:1px solid #282e3d; border-radius:18px; padding:32px; box-shadow:var(--shadow-md);">
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="status-dot"></span>
+                        <strong style="font-size:14px; color:#ffffff;">Webhook Dispatch & Verification</strong>
+                    </div>
+
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="action-btn primary" id="tabCurl">cURL</button>
+                        <button type="button" class="action-btn" id="tabPython">Python</button>
+                        <button type="button" class="action-btn" id="tabNode">Node.js</button>
+                    </div>
+                </div>
+
+                <div class="code-viewer" id="codeBlock" style="max-height:none; font-size:13px; padding:18px;">
+# Dispatch event to HookRelay
+curl -X POST https://api.hookrelay.com/events/12 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "payment.succeeded",
+    "timestamp": "2026-10-05T03:30:00Z",
+    "data": {
+      "customer_id": "cust_8921",
+      "amount_usd": 150.00,
+      "status": "completed"
+    }
+  }'
+                </div>
+
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-top:24px; padding-top:20px; border-top:1px solid var(--border-subtle);">
+                    <div>
+                        <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600;">Signature Header</span>
+                        <strong style="display:block; font-size:12px; color:#c4b5fd; margin-top:3px; font-family:'JetBrains Mono', monospace;">X-HookRelay-Signature</strong>
+                    </div>
+                    <div>
+                        <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600;">Algorithm</span>
+                        <strong style="display:block; font-size:12px; color:#4ade80; margin-top:3px; font-family:'JetBrains Mono', monospace;">HMAC-SHA256 (Canonical)</strong>
+                    </div>
+                    <div>
+                        <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600;">Retry Backoff</span>
+                        <strong style="display:block; font-size:12px; color:#fde047; margin-top:3px; font-family:'JetBrains Mono', monospace;">Exponential (Max 3 attempts)</strong>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- CORE FEATURES -->
+        <section id="features" class="features-grid">
+            <div class="feature-box">
+                <div class="feature-icon">🔒</div>
+                <h3>HMAC-SHA256 Signing</h3>
+                <p>
+                    Every outbound event is signed with a unique per-endpoint webhook secret. Receivers verify signatures to guarantee origin and prevent payload tampering.
+                </p>
+            </div>
+
+            <div class="feature-box">
+                <div class="feature-icon">🔁</div>
+                <h3>Intelligent Exponential Retries</h3>
+                <p>
+                    Never drop critical business events. When destination servers return 4xx/5xx or experience network timeouts, HookRelay retries automatically with progressive backoff.
+                </p>
+            </div>
+
+            <div class="feature-box">
+                <div class="feature-icon">👁️</div>
+                <h3>Real-Time Audit Log & Replays</h3>
+                <p>
+                    Inspect complete request and response JSON payloads, response codes, and execution timestamps. Trigger manual replays with a single click.
+                </p>
+            </div>
+
+            <div class="feature-box">
+                <div class="feature-icon">⚡</div>
+                <h3>Built on FastAPI & PostgreSQL</h3>
+                <p>
+                    Engineered with asynchronous Python 3.14, SQLAlchemy ORM, and high-performance PostgreSQL persistence for rock-solid concurrency.
+                </p>
+            </div>
+
+            <div class="feature-box">
+                <div class="feature-icon">📬</div>
+                <h3>Dual-Mode Mail Delivery</h3>
+                <p>
+                    Production-grade SMTP integration delivering verification and password recovery OTPs reliably to any destination email worldwide.
+                </p>
+            </div>
+
+            <div class="feature-box">
+                <div class="feature-icon">🛡️</div>
+                <h3>Multi-Tenant Ownership Security</h3>
+                <p>
+                    Every endpoint, delivery attempt, and cryptographic secret is strictly isolated to the authenticated user via secure JWT authorization.
+                </p>
+            </div>
+        </section>
+
+        <!-- CALL TO ACTION BANNER -->
+        <section style="max-width: 980px; margin: 0 auto 100px; padding: 0 24px; text-align:center;">
+            <div style="background: radial-gradient(circle at 50% 0%, rgba(124, 92, 255, 0.2) 0%, transparent 70%), var(--panel); border:1px solid #2e3447; border-radius:22px; padding:50px 30px; box-shadow:var(--shadow-lg);">
+                <h2 style="font-size:32px; font-weight:800; letter-spacing:-0.03em; margin-bottom:14px; color:#ffffff;">
+                    Ready to scale your webhook infrastructure?
+                </h2>
+                <p style="color:var(--muted); max-width:540px; margin:0 auto 30px; font-size:15px;">
+                    Start relaying events in minutes with our developer-friendly console and REST API.
+                </p>
+                <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap;">
+                    <a href="/register.html" class="primary-btn" style="text-decoration:none; padding:13px 28px; font-size:14px;">
+                        Create Your Free Account →
+                    </a>
+                    <a href="/dashboard.html" class="secondary-btn" style="text-decoration:none; padding:13px 28px; font-size:14px;">
+                        Open Dashboard
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer style="border-top:1px solid var(--border); padding:36px 30px; text-align:center; font-size:13px; color:var(--muted);">
+        <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:10px;">
+            <div class="brand-icon" style="width:26px; height:26px; font-size:12px;">H</div>
+            <strong style="color:#ffffff;">HookRelay</strong>
+        </div>
+        <p>© 2026 HookRelay Infrastructure. All rights reserved.</p>
+    </footer>
+
+    <!-- INTERACTIVE CODE TAB SCRIPT -->
+    <script>
+        const codeSnippets = {
+            curl: `# Dispatch event to HookRelay
+curl -X POST https://api.hookrelay.com/events/12 \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "event": "payment.succeeded",
+    "timestamp": "2026-10-05T03:30:00Z",
+    "data": {
+      "customer_id": "cust_8921",
+      "amount_usd": 150.00,
+      "status": "completed"
+    }
+  }'`,
+            python: `# Verify webhook signature in Python (FastAPI/Flask)
+import hmac, hashlib, json
+
+def verify_signature(payload_dict, secret_key, received_sig):
+    canonical = json.dumps(payload_dict, separators=(",", ":"), sort_keys=True).encode()
+    expected = "sha256=" + hmac.new(secret_key.encode(), canonical, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(received_sig, expected)`,
+            node: `// Verify webhook signature in Node.js
+const crypto = require("crypto");
+
+function verifySignature(payload, secretKey, receivedSig) {
+    const canonical = JSON.stringify(payload);
+    const expected = "sha256=" + crypto.createHmac("sha256", secretKey).update(canonical).digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(receivedSig), Buffer.from(expected));
+}`
+        };
+
+        const codeBlock = document.getElementById("codeBlock");
+        const btnCurl = document.getElementById("tabCurl");
+        const btnPython = document.getElementById("tabPython");
+        const btnNode = document.getElementById("tabNode");
+
+        function setTab(name, btn) {
+            codeBlock.textContent = codeSnippets[name];
+            [btnCurl, btnPython, btnNode].forEach(b => b.classList.remove("primary"));
+            btn.classList.add("primary");
+        }
+
+        btnCurl.onclick = () => setTab("curl", btnCurl);
+        btnPython.onclick = () => setTab("python", btnPython);
+        btnNode.onclick = () => setTab("node", btnNode);
+    </script>
+
+</body>
+
+</html>

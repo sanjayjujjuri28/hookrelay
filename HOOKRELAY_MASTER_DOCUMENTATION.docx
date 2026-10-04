@@ -1,0 +1,1028 @@
+1. What HookRelay Is
+HookRelay is a webhook infrastructure application. A user creates webhook endpoints, stores the target URL and a generated webhook secret, sends events to those endpoints, records delivery attempts, and can inspect or retry failed deliveries.
+
+The application is also responsible for user identity and access: registration, email verification, login, JWT authentication, current-user lookup, forgot-password OTP, and password reset.
+
+Core mental model
+Browser
+  ↓
+FastAPI route
+  ↓
+Dependency / authentication
+  ↓
+SQLAlchemy Session
+  ↓
+PostgreSQL
+  ↓
+Webhook / Delivery data
+
+For an outgoing webhook:
+Event
+  ↓
+Find user's webhook
+  ↓
+Build payload
+  ↓
+Sign payload with webhook secret
+  ↓
+HTTP request to target URL
+  ↓
+Record status / response / error
+  ↓
+Dashboard displays delivery history
+
+Important distinction
+Authentication answers: “Who is this user?”
+
+Authorization answers: “Is this resource owned by this user?”
+
+Webhook signing answers: “Did this event really come from HookRelay?”
+
+Delivery tracking answers: “What happened when HookRelay tried to deliver the event?”
+
+2. High-Level Architecture
+                         ┌──────────────────────┐
+                         │       Browser        │
+                         │ HTML/CSS/JavaScript  │
+                         └──────────┬───────────┘
+                                    │ HTTP + Bearer JWT
+                                    ▼
+                         ┌──────────────────────┐
+                         │       FastAPI        │
+                         │      app/main.py     │
+                         └──────────┬───────────┘
+                                    │
+                ┌───────────────────┼───────────────────┐
+                ▼                   ▼                   ▼
+        ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+        │ Auth Router  │    │ Webhook Router│    │ Delivery Router│
+        │ /auth/*      │    │ /webhooks/*  │    │ /deliveries/* │
+        └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+               │                   │                   │
+               └───────────────────┼───────────────────┘
+                                   ▼
+                         ┌──────────────────────┐
+                         │ SQLAlchemy Session   │
+                         │ models + queries     │
+                         └──────────┬───────────┘
+                                    ▼
+                         ┌──────────────────────┐
+                         │     PostgreSQL       │
+                         └──────────────────────┘
+
+                         Supporting services
+                         ┌──────────────────────┐
+                         │ Email service        │
+                         │ Webhook service      │
+                         │ Password utilities   │
+                         └──────────────────────┘
+
+3. Project Folder Architecture
+HookRelay/
+├── app/
+│   ├── main.py
+│   ├── database.py
+│   ├── models.py
+│   ├── schemas.py
+│   ├── auth.py
+│   ├── utils.py
+│   ├── routers/
+│   │   ├── auth.py
+│   │   ├── webhooks.py
+│   │   ├── deliveries.py
+│   │   └── events.py
+│   └── services/
+│       ├── email_service.py
+│       └── webhook_service.py
+│
+├── frontend/
+│   ├── index.html
+│   ├── login.html
+│   ├── register.html
+│   ├── verify.html
+│   ├── forgot-password.html
+│   ├── reset-password.html
+│   ├── dashboard.html
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       ├── api.js
+│       ├── auth.js
+│       └── dashboard.js
+│
+├── alembic/
+│   └── versions/
+│
+├── .env
+├── .gitignore
+└── venv/
+
+The exact presence/contents of every file above should be treated as the target/current architecture based on the project material. The backend router/service structure and frontend filenames are confirmed in the supplied project material; some files may have multiple pasted versions in the conversation.
+
+4. Backend Entry Point: app/main.py
+The main application is responsible for creating the FastAPI app, serving frontend assets, configuring CORS, exposing basic health/test routes, and including the API routers.
+
+FastAPI application object: app = FastAPI()
+
+Static frontend is mounted under "/static".
+
+The dashboard page is served as "/dashboard" in one confirmed version.
+
+The project also accesses "/dashboard.html" directly when the static/frontend serving setup is used.
+
+Routers included: authentication, webhooks, events, and deliveries.
+
+A "/db-test" route queries users through SQLAlchemy.
+
+A "/test-receiver" route exists for webhook signature verification/testing.
+
+Router inclusion flow
+app.include_router(auth_router)
+app.include_router(webhook_router)
+app.include_router(events.router)
+app.include_router(deliveries.router)
+
+Frontend serving
+app.mount(
+    "/static",
+    StaticFiles(directory="frontend"),
+    name="static"
+)
+
+@app.get("/dashboard")
+def dashboard_page():
+    return FileResponse("frontend/dashboard.html")
+
+5. Database Layer: PostgreSQL + SQLAlchemy
+The application uses SQLAlchemy as the Python ORM and PostgreSQL as the relational database. The important learning flow is: database URL → Engine → Session factory → dependency → route → query → commit/refresh.
+
+DATABASE_URL
+     ↓
+create_engine(...)
+     ↓
+SessionLocal = sessionmaker(...)
+     ↓
+get_db()
+     ↓
+route receives db: Session
+     ↓
+db.query(...) / db.add(...)
+     ↓
+db.commit()
+     ↓
+db.refresh(...)
+     ↓
+PostgreSQL
+
+What each SQLAlchemy object means
+Object
+Meaning
+Engine
+Long-lived connection interface/pool used by SQLAlchemy to communicate with PostgreSQL.
+SessionLocal
+Factory that creates database sessions for individual requests/operations.
+Session
+Unit of work used to query, add, update, delete, commit, and rollback.
+Base
+Declarative base from which ORM model classes inherit.
+Model
+Python representation of a database table.
+Column
+Definition of a table column and its SQL type/constraints.
+ForeignKey
+Database relationship constraint between tables.
+Alembic
+Migration system used to change database schema safely.
+Database dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+Every request that needs the database receives a session through Depends(get_db). The session must be closed after the request.
+
+6. Current Database Model Design
+Table
+Important fields
+Purpose
+users
+id, email, hashed_password, is_verified, created_at, password-reset fields
+User identity and authentication state.
+email_verification_otps
+id, user_id, otp, purpose, expires_at, created_at
+Temporary OTP records for verification/reset flows.
+webhooks
+id, name, target_url, user_id, secret, is_active, created_at
+User-owned webhook endpoints.
+webhook_deliveries
+id, webhook_id, event_payload, status_code, status, attempt_number, created_at, error_message
+Audit/history of webhook delivery attempts.
+Relationships
+users
+  │
+  ├──< email_verification_otps
+  │
+  └──< webhooks
+          │
+          └──< webhook_deliveries
+
+This means one user can have multiple OTP records and multiple webhooks. One webhook can have multiple delivery attempts.
+
+7. Authentication Architecture
+Authentication currently uses JWT Bearer authentication. The login route verifies the user's password and email-verification state, then creates an access token whose subject contains the user's ID.
+
+POST /auth/login
+      ↓
+Find user by email
+      ↓
+Verify plaintext password against hashed_password
+      ↓
+Check is_verified
+      ↓
+create_access_token({"sub": str(user.id)})
+      ↓
+Return:
+{
+  "access_token": "...",
+  "token_type": "bearer"
+}
+
+JWT verification flow
+Browser sends:
+Authorization: Bearer <JWT>
+        ↓
+HTTPBearer extracts credentials
+        ↓
+jwt.decode(...)
+        ↓
+read payload["sub"]
+        ↓
+convert sub to integer user ID
+        ↓
+SELECT user WHERE id = user_id
+        ↓
+return User object
+        ↓
+route continues
+
+The current-user dependency is the central authentication dependency used by protected routes.
+
+JWT payload concept
+{
+    "sub": "12",
+    "exp": "<expiration timestamp>"
+}
+
+Never store real JWT secrets, passwords, access tokens, or reset tokens in source code or documentation. Keep secrets in environment variables.
+
+8. Registration + Email Verification
+POST /auth/register
+  ↓
+Check duplicate email
+  ↓
+Hash password
+  ↓
+Create User
+  ↓
+flush() to obtain user.id
+  ↓
+Generate OTP
+  ↓
+Set expiry (currently 5 minutes in the confirmed implementation)
+  ↓
+Create EmailVerificationOTP
+  ↓
+commit()
+  ↓
+Send verification email
+  ↓
+Return user
+
+The confirmed registration implementation hashes the password, creates the user, generates a verification OTP, stores it with an expiration time, commits the records, and sends a verification email. filecite references are maintained in the project source, not embedded here.
+
+Verification concept
+User enters:
+email + OTP
+
+Backend:
+1. Find user
+2. Find matching OTP for the intended purpose
+3. Check expiry
+4. Mark user.is_verified = True
+5. Commit
+6. Return success
+
+9. Forgot Password + Reset Password
+The project includes a password-reset flow using an email OTP followed by a reset token. This was recently debugged successfully: the password reset completed successfully after the missing model fields were added/migrated.
+
+Forgot password
+    ↓
+Find user by email
+    ↓
+Generate OTP
+    ↓
+Store OTP + expiry + purpose
+    ↓
+Send reset OTP by email
+    ↓
+User submits OTP
+    ↓
+Backend verifies OTP
+    ↓
+Backend issues reset token
+    ↓
+User submits email + reset_token + new_password
+    ↓
+Backend verifies reset token
+    ↓
+Hash new password
+    ↓
+Save hashed password
+    ↓
+Clear/reset token state
+    ↓
+Password reset successfully
+
+Important model requirement
+password_reset_token
+password_reset_expires_at
+
+The project previously raised an AttributeError because User did not initially contain password_reset_token. The fields were then added and an Alembic migration was generated/applied. This is an example of why ORM model changes and database migrations must remain synchronized.
+
+10. Webhook Management API
+Method
+Endpoint
+Purpose
+POST
+/webhooks/
+Create a webhook for the current user.
+GET
+/webhooks/
+List the current user's webhooks.
+GET
+/webhooks/{webhook_id}
+Get one owned webhook.
+PUT
+/webhooks/{webhook_id}
+Update name, target URL, and active state.
+DELETE
+/webhooks/{webhook_id}
+Delete an owned webhook.
+POST
+/webhooks/{webhook_id}/regenerate-secret
+Generate a new webhook secret.
+Create webhook flow
+POST /webhooks/
+Authorization: Bearer <JWT>
+
+Body:
+{
+    "name": "Production API",
+    "target_url": "https://example.com/webhook"
+}
+
+Backend:
+1. JWT → current_user
+2. Generate secret:
+   whsec_<random value>
+3. Create Webhook(user_id=current_user.id)
+4. db.add()
+5. db.commit()
+6. db.refresh()
+7. Return webhook data
+
+The secret is generated server-side with Python's secrets module. Ownership is enforced by filtering Webhook.user_id == current_user.id.
+
+11. Authorization / Ownership Pattern
+This pattern is critical. A user must never be able to access another user's webhook merely by changing an ID in the URL.
+
+webhook = db.query(Webhook).filter(
+    Webhook.id == webhook_id,
+    Webhook.user_id == current_user.id
+).first()
+
+Authentication gives us current_user.
+
+The second filter enforces ownership.
+
+If no record is found, return 404.
+
+Use this pattern consistently for get/update/delete/regenerate operations.
+
+12. Webhook Secret and Signature Architecture
+The project uses a per-webhook secret and HMAC-SHA256 signatures. The test receiver demonstrates the verification concept.
+
+payload
+  ↓
+canonical JSON:
+json.dumps(
+    payload,
+    separators=(",", ":"),
+    sort_keys=True
+)
+  ↓
+HMAC-SHA256(secret, payload_bytes)
+  ↓
+"sha256=" + hex_digest
+  ↓
+X-HookRelay-Signature header
+
+Receiver verification
+received_signature = request.headers["X-HookRelay-Signature"]
+
+expected_signature =
+    "sha256=" +
+    HMAC_SHA256(
+        webhook_secret,
+        canonical_payload
+    )
+
+hmac.compare_digest(
+    received_signature,
+    expected_signature
+)
+
+The current test-receiver code contains a hardcoded secret for local testing. Before production, this must be replaced with a dynamic lookup of the webhook secret associated with the delivery/request context.
+
+13. Delivery Architecture
+Field
+Meaning
+webhook_id
+Which endpoint the attempt belongs to.
+event_payload
+JSON payload sent to the target.
+status_code
+HTTP response code when available.
+status
+Application-level state such as success or failed.
+attempt_number
+How many delivery attempts have occurred.
+created_at
+When the delivery record was created.
+error_message
+Failure reason when applicable.
+Manual retry flow
+POST /deliveries/{delivery_id}/retry
+        ↓
+Find delivery joined with Webhook
+        ↓
+Verify Webhook.user_id == current_user.id
+        ↓
+Get webhook
+        ↓
+deliver_webhook(...)
+        ↓
+Increment attempt_number
+        ↓
+Set status_code
+        ↓
+2xx → success
+otherwise → failed
+        ↓
+commit()
+        ↓
+Return retry result
+
+Delivery list
+The delivery route supports page and limit pagination and an optional status filter. Results are ordered by created_at descending.
+
+14. Events Layer
+An events router exists in the architecture and is included by app/main.py. Its exact current implementation should be treated as a separate subsystem from the confirmed webhook CRUD and delivery retry routes.
+
+Event subsystem target:
+
+POST /events/... 
+     ↓
+Authenticate user
+     ↓
+Identify webhook
+     ↓
+Validate ownership
+     ↓
+Create delivery record
+     ↓
+Call webhook delivery service
+     ↓
+Store result
+     ↓
+Expose delivery history
+
+Exact events endpoint names and payload contract are not fully recoverable from the currently indexed source excerpts, so those details should be verified directly in app/routers/events.py before implementation changes.
+
+15. Webhook Service
+The project contains app/services/webhook_service.py and the delivery router calls deliver_webhook().
+
+deliver_webhook(
+    target_url=webhook.target_url,
+    payload=delivery.event_payload,
+    secret=webhook.secret
+)
+
+The service is conceptually responsible for constructing the outbound HTTP request, signing it, sending it, and returning the HTTP response or raising an exception. Keep network logic in the service rather than duplicating it across routers.
+
+16. Frontend Architecture
+The frontend is intentionally lightweight: HTML for structure, CSS for presentation, and JavaScript for API calls and UI state.
+
+frontend/
+├── login.html
+├── register.html
+├── verify.html
+├── forgot-password.html
+├── reset-password.html
+├── dashboard.html
+├── css/
+│   └── style.css
+└── js/
+    ├── api.js
+    ├── auth.js
+    └── dashboard.js
+
+Dashboard responsibilities
+Show logged-in user.
+
+Show overview statistics.
+
+List webhooks.
+
+Create webhook.
+
+Display deliveries.
+
+Filter deliveries.
+
+Retry deliveries.
+
+Eventually support edit/delete/regenerate-secret actions.
+
+Logout and remove access token.
+
+Dashboard HTML structure
+Sidebar: HookRelay brand and navigation.
+
+Overview section.
+
+Webhooks section.
+
+Deliveries section.
+
+Create Webhook modal.
+
+The HTML loads /static/js/api.js, /static/js/auth.js, and /static/js/dashboard.js. fileciteturn26file2L598-L602
+
+17. Frontend Authentication Flow
+Login form
+   ↓
+POST /auth/login
+   ↓
+receive access_token
+   ↓
+localStorage.setItem("access_token", token)
+   ↓
+navigate to /dashboard.html
+   ↓
+dashboard JS reads token
+   ↓
+GET /auth/me
+Authorization: Bearer <token>
+   ↓
+load user
+   ↓
+GET /webhooks/
+GET /deliveries/
+   ↓
+render dashboard
+
+The project currently uses localStorage key access_token in the frontend dashboard code. The supplied dashboard implementation explicitly reads that key before API requests. fileciteturn26file6L1258-L1264
+
+18. Current Frontend Problem and Correct Architecture
+The dashboard has gone through multiple pasted versions. One version contains an internal apiRequest() helper, while the intended architecture separates API handling into api.js. This duplication is a major source of frontend inconsistency.
+
+File
+Single responsibility
+api.js
+Central HTTP client: token, Authorization header, JSON parsing, 401 handling, errors.
+auth.js
+Login/register/OTP/password-reset UI and auth-related redirects.
+dashboard.js
+Dashboard state, navigation, webhook CRUD UI, delivery UI.
+dashboard.html
+Structure and DOM elements only.
+style.css
+Visual design only.
+The clean architecture is: dashboard.js calls API.get/post/put/delete; api.js is the only place that knows how the JWT is attached to requests.
+
+19. Exact Create Webhook End-to-End Flow
+1. User logs in.
+2. Backend returns JWT.
+3. Frontend stores JWT as access_token.
+4. Dashboard loads.
+5. dashboard.js calls GET /auth/me.
+6. Backend decodes JWT.
+7. Backend loads User by payload["sub"].
+8. Dashboard receives user information.
+9. dashboard.js calls GET /webhooks/.
+10. Backend filters Webhook.user_id by current_user.id.
+11. User clicks + Create webhook.
+12. Modal opens.
+13. User enters name and target URL.
+14. dashboard.js sends:
+       POST /webhooks/
+       Authorization: Bearer <JWT>
+       JSON body
+15. FastAPI validates WebhookCreate schema.
+16. get_current_user identifies user.
+17. SQLAlchemy creates Webhook.
+18. secrets.token_urlsafe() generates secret.
+19. db.commit().
+20. db.refresh().
+21. Backend returns webhook.
+22. Frontend closes modal.
+23. Frontend reloads webhook list.
+24. PostgreSQL now contains the webhook.
+25. Dashboard displays it.
+
+This is the first end-to-end workflow to make completely reliable before adding more UI features.
+
+20. Exact Delivery End-to-End Flow
+1. An event enters the events layer.
+2. The backend identifies the target webhook.
+3. Ownership/authorization is checked.
+4. A delivery record is created.
+5. webhook_service.deliver_webhook() sends the request.
+6. Signature is generated from the webhook secret.
+7. Target application receives the request.
+8. Target returns an HTTP status.
+9. Delivery status is saved:
+      2xx → success
+      non-2xx → failed
+      exception → failed + error_message
+10. Dashboard calls GET /deliveries/.
+11. Delivery history is rendered.
+12. User can inspect/retry a delivery.
+13. Retry increments attempt_number and records the new result.
+
+21. API Contract Map
+Group
+Endpoint
+Auth
+Main job
+Auth
+POST /auth/register
+No
+Create user + verification OTP
+Auth
+POST /auth/login
+No
+Verify credentials + return JWT
+Auth
+GET /auth/me
+Yes
+Return current user
+Auth
+POST /auth/verify-email
+No
+Verify email OTP
+Auth
+Forgot/reset endpoints
+Varies
+Password recovery
+Webhooks
+POST /webhooks/
+Yes
+Create endpoint
+Webhooks
+GET /webhooks/
+Yes
+List owned endpoints
+Webhooks
+GET /webhooks/{id}
+Yes
+Get one owned endpoint
+Webhooks
+PUT /webhooks/{id}
+Yes
+Update endpoint
+Webhooks
+DELETE /webhooks/{id}
+Yes
+Delete endpoint
+Webhooks
+POST /webhooks/{id}/regenerate-secret
+Yes
+Rotate secret
+Deliveries
+GET /deliveries/
+Yes
+List attempts + filter/pagination
+Deliveries
+GET /deliveries/{id}
+Yes
+Inspect one attempt
+Deliveries
+POST /deliveries/{id}/retry
+Yes
+Retry delivery
+System
+GET /
+No
+API health/basic message
+System
+GET /db-test
+No
+Database test
+System
+POST /test-receiver
+No
+Local signature verification test
+22. Pydantic Schemas vs SQLAlchemy Models
+This distinction is fundamental to the project.
+
+Layer
+Example
+Job
+Pydantic schema
+WebhookCreate
+Validate incoming JSON request data.
+Pydantic response
+WebhookResponse / WebhookCreateResponse
+Control API response shape.
+SQLAlchemy model
+Webhook
+Represent and persist database rows.
+FastAPI dependency
+get_current_user
+Inject authenticated user.
+SQLAlchemy Session
+db
+Perform database operations.
+Browser JSON
+   ↓
+Pydantic schema
+   ↓
+Python object
+   ↓
+SQLAlchemy model
+   ↓
+PostgreSQL row
+
+23. Error Handling Map
+Status
+Typical meaning in HookRelay
+400
+Bad input / invalid request depending on route.
+401
+Missing/invalid/expired authentication or invalid signature.
+403
+Authenticated but not allowed, e.g. email not verified.
+404
+User/webhook/delivery does not exist or is not owned.
+409
+Conflict such as duplicate email.
+422
+FastAPI/Pydantic validation error.
+500
+Unexpected server-side exception; inspect traceback.
+24. Alembic and Schema Evolution
+Change SQLAlchemy model
+        ↓
+alembic revision --autogenerate -m "description"
+        ↓
+Inspect migration file
+        ↓
+alembic upgrade head
+        ↓
+PostgreSQL schema updated
+
+The password-reset fields were added through an Alembic revision in the project. This establishes the expected migration workflow.
+
+Do not rely on Base.metadata.create_all() to update an existing production schema. create_all creates missing tables/objects but does not perform controlled schema migrations for existing structures.
+
+25. Environment Variables and Secrets
+Secret/config
+Where it belongs
+DATABASE_URL
+.env / deployment environment
+JWT_SECRET_KEY
+.env / deployment environment
+Email provider credentials
+.env / deployment environment
+Other API credentials
+.env / deployment environment
+Never commit .env to Git. Never paste actual secret values into frontend JavaScript. Never expose webhook secrets unnecessarily.
+
+26. Security Requirements Before Production
+Use a strong JWT secret of at least 32 random bytes for HS256.
+
+The current project has produced an InsecureKeyLengthWarning for a short JWT key; this must be fixed before production.
+
+Do not hardcode webhook secrets in test_receiver.
+
+Do not return secrets repeatedly after they are created unless intentionally designed.
+
+Rotate webhook secrets safely and document the impact on consumers.
+
+Use strict ownership filters on every webhook and delivery query.
+
+Validate target URLs and define SSRF protections before allowing arbitrary internet destinations in a production webhook service.
+
+Add request timeouts to outbound webhook HTTP calls.
+
+Consider retry/backoff and idempotency for production delivery.
+
+Use restrictive CORS in production instead of allow_origins=['*'].
+
+Store only password hashes, never plaintext passwords.
+
+Expire and invalidate password-reset tokens after use.
+
+Avoid logging JWTs, reset tokens, passwords, or webhook secrets.
+
+27. Current Known Issues / Technical Debt
+Issue
+Why it matters
+Priority
+Frontend JS versions are duplicated/inconsistent
+Can cause blank dashboard or controls not working.
+P0
+Dashboard API/auth flow needs one centralized client
+Prevents token/header inconsistencies.
+P0
+Create webhook end-to-end test
+Core product workflow.
+P0
+Delivery event path needs verification
+Core product workflow.
+P0
+Hardcoded test receiver secret
+Security and correctness issue.
+P1
+JWT secret length warning
+Security weakness.
+P1
+Production CORS is currently permissive
+Security/configuration issue.
+P1
+Outbound webhook timeout/retry policy
+Reliability requirement.
+P1
+Frontend actions beyond create/list
+Feature completeness.
+P2
+Automated tests
+Regression prevention.
+P2
+28. Master Development Plan
+Freeze the backend while repairing the frontend contract.
+
+Make api.js the only HTTP client.
+
+Make auth.js responsible only for authentication pages and auth state.
+
+Make dashboard.js responsible only for dashboard behavior.
+
+Verify login → localStorage access_token → /auth/me.
+
+Verify GET /webhooks/ with the JWT.
+
+Verify POST /webhooks/ and confirm PostgreSQL row.
+
+Verify dashboard refresh displays the newly created webhook.
+
+Implement/test webhook detail, update, delete, and secret rotation.
+
+Verify event creation and outbound delivery.
+
+Verify delivery database records.
+
+Verify delivery dashboard list/filter/pagination.
+
+Verify manual retry.
+
+Build a real local receiver for signature testing.
+
+Remove hardcoded secrets and tighten security.
+
+Add automated backend tests.
+
+Polish UI only after all core workflows are stable.
+
+Prepare deployment configuration.
+
+29. Testing Checklist
+Test
+Expected result
+Register new user
+User row created; OTP created; email sent.
+Verify OTP
+User becomes verified.
+Login
+JWT returned.
+Dashboard load
+/auth/me returns current user.
+List webhooks
+Only current user's webhooks appear.
+Create webhook
+201/200 success + row in PostgreSQL + dashboard update.
+Get webhook
+Correct owned webhook returned.
+Update webhook
+Database values change.
+Delete webhook
+Row removed.
+Regenerate secret
+Secret changes.
+Create event
+Delivery attempt created.
+Successful delivery
+status=success and 2xx code recorded.
+Failed delivery
+status=failed and error information recorded.
+Retry
+attempt_number increments and result updates.
+Logout
+Token removed and protected pages redirect to login.
+Expired JWT
+401 and redirect to login.
+Cross-user access
+Resource is not accessible.
+30. Developer Mental Model — Remember This
+AUTHENTICATION
+JWT tells FastAPI WHO you are.
+
+AUTHORIZATION
+user_id filters tell FastAPI WHAT you are allowed to access.
+
+PYDANTIC
+Validates the shape of data coming into/out of the API.
+
+SQLALCHEMY MODEL
+Represents a database table in Python.
+
+SESSION
+Performs the actual database work.
+
+POSTGRESQL
+Stores the persistent data.
+
+ROUTER
+Defines HTTP endpoints and request/response behavior.
+
+SERVICE
+Contains reusable business/network logic.
+
+ALEMBIC
+Changes the database schema over time.
+
+FRONTEND
+Calls the API and renders the result.
+
+WEBHOOK SECRET
+Signs outbound requests so receivers can verify authenticity.
+
+DELIVERY
+Records what happened when HookRelay attempted an outbound request.
+
+31. Current Project State Snapshot
+Based on the project material currently available:
+
+FastAPI server runs with Uvicorn on localhost:8000.
+
+PostgreSQL + SQLAlchemy integration exists.
+
+Alembic migrations are in use.
+
+User registration, email verification, login, and JWT authentication exist.
+
+Password reset flow was successfully completed after adding reset-token model fields.
+
+Webhook CRUD routes exist.
+
+Delivery list/detail/retry routes exist.
+
+Webhook signature generation/verification concept exists.
+
+A styled dashboard HTML exists.
+
+The frontend is currently the main integration area that needs stabilization.
+
+The immediate milestone is Create Webhook → PostgreSQL → Dashboard.
+
+32. Source Basis and Confidence
+This document was prepared from the HookRelay project material available in the conversation/project. The dashboard HTML confirms the navigation, overview/webhook/delivery sections, create-webhook form, and script loading. The authentication source confirms registration/login/current-user patterns. The project material also contains the dashboard JavaScript implementation using access_token and an Authorization Bearer header.
+
+Dashboard HTML and script loading: fileciteturn26file0L42-L102 and fileciteturn26file2L524-L602
+
+Dashboard JS token/API pattern: fileciteturn26file6L1252-L1394
+
+Registration/login/current-user implementation: fileciteturn27file3L369-L501
+
+Project runtime evidence for Uvicorn and localhost:8000: fileciteturn27file0L10-L19
+
+Some backend files were supplied directly in conversation rather than as complete indexed project files. For any detail not explicitly available in those sources, this document labels it as a target architecture or says it must be verified.
+
+
+HOOKRELAY — MASTER REFERENCE
+
+Build the system in layers. Test each layer before moving to the next.

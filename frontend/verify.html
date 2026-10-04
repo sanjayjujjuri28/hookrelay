@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HookRelay — Verify Email</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+
+    <div class="auth-page">
+
+        <div class="auth-card">
+
+            <div class="brand">
+                <div class="brand-mark">H</div>
+                <div>
+                    <h2>HookRelay</h2>
+                    <span>Webhook Infrastructure</span>
+                </div>
+            </div>
+
+            <div class="auth-heading">
+                <span class="eyebrow">SECURITY VERIFICATION</span>
+                <h2>Check your inbox.</h2>
+                <p>
+                    We sent a 6-digit verification code to <strong id="displayEmail" style="color:#dce0e8;">your email</strong>. Enter it below to activate your account.
+                </p>
+            </div>
+
+            <!-- OTP AUTO-FILL & DEV HINT BANNER -->
+            <div id="otpHintBox" style="display:none; margin-bottom:18px; padding:12px 14px; background:rgba(124,92,255,0.1); border:1px solid rgba(124,92,255,0.3); border-radius:10px; font-size:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>🔑 Verification Code: <strong id="hintOtpCode" style="color:#a894ff; font-size:16px; letter-spacing:2px; font-family:'SF Mono', monospace;"></strong></span>
+                    <button type="button" id="autofillBtn" class="text-btn" style="padding:4px 8px; font-size:11px; background:rgba(124,92,255,0.2);">Auto-fill</button>
+                </div>
+                <p style="font-size:11px; color:var(--muted); margin-top:6px;">
+                    Forwarded to owner mailbox & logged in server terminal.
+                </p>
+            </div>
+
+            <form id="verifyForm">
+
+                <div class="form-group">
+                    <label for="email">Account email</label>
+                    <input
+                        type="email"
+                        id="email"
+                        placeholder="you@company.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <div class="label-row">
+                        <label for="otp">6-Digit verification code</label>
+                        <button type="button" id="resendOtpBtn" class="text-btn" style="padding:0; font-size:11px;">
+                            Resend code
+                        </button>
+                    </div>
+                    <input
+                        type="text"
+                        id="otp"
+                        class="otp-field"
+                        placeholder="••••••"
+                        maxlength="6"
+                        pattern="[0-9]{6}"
+                        inputmode="numeric"
+                        autocomplete="one-time-code"
+                        required
+                    >
+                    <span class="form-hint">Code expires in 5 minutes</span>
+                </div>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Verify & Continue
+                </button>
+
+                <div
+                    id="verifyMessage"
+                    class="message"
+                ></div>
+
+            </form>
+
+            <div class="auth-footer">
+                <span>Wrong email address?</span>
+                <a href="/register.html" class="auth-link">Register again</a>
+                <span>•</span>
+                <a href="/login.html" class="auth-link">Sign in</a>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/auth.js"></script>
+
+</body>
+
+</html>
